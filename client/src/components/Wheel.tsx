@@ -3,100 +3,103 @@ import { WHEEL_SLOTS } from './wheelSlots';
 import { runSpinAnimation } from './spinEasing';
 
 const SLOT_COUNT = WHEEL_SLOTS.length;
-const SLOT_ANGLE = 360 / SLOT_COUNT;
-const COLORS = ['#3a1665', '#4b1d82'];
 
-function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
-  const rad = ((angleDeg - 90) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-}
+// How many times the 15-slot pattern is repeated to build the scrollable strip.
+// Large enough that the periodic "rewind" (see spinTo) is invisible and rare.
+const REPEATS = 40;
+const STRIP_LENGTH = SLOT_COUNT * REPEATS;
 
-function describeSlice(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
-  const start = polarToCartesian(cx, cy, r, endAngle);
-  const end = polarToCartesian(cx, cy, r, startAngle);
-  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
-  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
-}
+const CARD_W = 92;
+const CARD_GAP = 12;
+const PITCH = CARD_W + CARD_GAP;
+
+// Extra full laps of the pattern the reel scrolls through before settling on the
+// real target, purely for visual drama — has zero effect on which prize was won.
+const FULL_LAPS = 6;
+
+// Once the strip has scrolled this many laps in, snap back by whole laps (same
+// modulo position, so nothing visibly changes) to stay within STRIP_LENGTH forever.
+const REWIND_AFTER_LAPS = REPEATS - 12;
+const REWIND_KEEP_LAPS = 6;
+
+// Start resting somewhere comfortably inside the strip, not at the very edge.
+const INITIAL_IDX = SLOT_COUNT * 10;
 
 export interface WheelHandle {
   spinTo: (targetSlotIndex: number, durationMs: number, onDone: () => void) => void;
 }
 
-export const Wheel = React.forwardRef<WheelHandle, { size?: number }>(function Wheel({ size = 300 }, ref) {
-  const [rotation, setRotation] = useState(0);
-  const baseRotationRef = useRef(0);
+export const Wheel = React.forwardRef<WheelHandle, { width?: number }>(function Wheel({ width = 320 }, ref) {
+  const [posIdx, setPosIdx] = useState(INITIAL_IDX);
+  const [landedAbsIdx, setLandedAbsIdx] = useState<number | null>(null);
+  const baseIdxRef = useRef(INITIAL_IDX);
 
   React.useImperativeHandle(ref, () => ({
     spinTo(targetSlotIndex, durationMs, onDone) {
-      const slotCenterAngle = targetSlotIndex * SLOT_ANGLE + SLOT_ANGLE / 2;
-      // Pointer is fixed at the top (0deg). We need the slot's center to land there,
-      // rotating clockwise, plus several full spins for visual drama.
-      const fullSpins = 8;
-      const currentMod = baseRotationRef.current % 360;
-      const targetMod = (360 - slotCenterAngle) % 360;
-      let deltaToTarget = targetMod - currentMod;
-      if (deltaToTarget < 0) deltaToTarget += 360;
+      setLandedAbsIdx(null);
 
-      const totalRotationDeg = fullSpins * 360 + deltaToTarget;
-      const startRotation = baseRotationRef.current;
+      const currentIdx = baseIdxRef.current;
+      const currentMod = ((currentIdx % SLOT_COUNT) + SLOT_COUNT) % SLOT_COUNT;
+      const deltaToTarget = ((targetSlotIndex - currentMod) % SLOT_COUNT + SLOT_COUNT) % SLOT_COUNT;
+      const totalDeltaIdx = FULL_LAPS * SLOT_COUNT + deltaToTarget;
+      let newIdx = currentIdx + totalDeltaIdx;
 
       runSpinAnimation({
         durationMs,
-        totalRotationDeg,
-        onFrame: (deg) => setRotation(startRotation + deg),
+        totalRotationDeg: totalDeltaIdx, // unit-agnostic — here it's "slot units", not degrees
+        onFrame: (delta) => setPosIdx(currentIdx + delta),
         onDone: () => {
-          baseRotationRef.current = startRotation + totalRotationDeg;
+          // Keep the strip from growing forever: rewind by whole laps (invisible — same
+          // modulo position) once we're getting close to the end of the rendered array.
+          if (newIdx > SLOT_COUNT * REWIND_AFTER_LAPS) {
+            const lapsNow = Math.floor(newIdx / SLOT_COUNT);
+            const rewindLaps = lapsNow - REWIND_KEEP_LAPS;
+            newIdx -= rewindLaps * SLOT_COUNT;
+          }
+          baseIdxRef.current = newIdx;
+          setPosIdx(newIdx);
+          setLandedAbsIdx(newIdx);
           onDone();
         },
       });
     },
   }));
 
-  const cx = 150;
-  const cy = 150;
-  const r = 148;
+  const translateX = useMemo(() => width / 2 - (posIdx * PITCH + CARD_W / 2), [posIdx, width]);
 
-  const slices = useMemo(
+  const cards = useMemo(
     () =>
-      WHEEL_SLOTS.map((slot, i) => {
-        const startAngle = i * SLOT_ANGLE;
-        const endAngle = startAngle + SLOT_ANGLE;
-        const midAngle = startAngle + SLOT_ANGLE / 2;
-        const labelPos = polarToCartesian(cx, cy, r * 0.68, midAngle);
-        return (
-          <g key={slot.key}>
-            <path d={describeSlice(cx, cy, r, startAngle, endAngle)} fill={COLORS[i % 2]} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
-            <text
-              x={labelPos.x}
-              y={labelPos.y}
-              fill="#f4eeff"
-              fontSize="13"
-              fontWeight={800}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              transform={`rotate(${midAngle}, ${labelPos.x}, ${labelPos.y})`}
-            >
-              {slot.icon}
-            </text>
-          </g>
-        );
+      Array.from({ length: STRIP_LENGTH }, (_, i) => {
+        const slot = WHEEL_SLOTS[i % SLOT_COUNT];
+        return { i, slot };
       }),
     []
   );
 
   return (
-    <div className="wheel-wrap">
-      <div className="wheel-pointer" />
-      <div className="wheel-outer" style={{ width: size, height: size }}>
-        <svg
-          className="wheel-svg"
-          viewBox="0 0 300 300"
-          style={{ transform: `rotate(${rotation}deg)` }}
+    <div className="reel-wrap">
+      <div className="reel-pointer reel-pointer-top" />
+      <div className="reel-viewport" style={{ width }}>
+        <div className="reel-fade reel-fade-left" />
+        <div className="reel-fade reel-fade-right" />
+        <div className="reel-window" style={{ width: CARD_W + 10 }} />
+        <div
+          className="reel-strip"
+          style={{ transform: `translateX(${translateX}px)`, gap: CARD_GAP }}
         >
-          {slices}
-        </svg>
-        <div className="wheel-center">🎰</div>
+          {cards.map(({ i, slot }) => (
+            <div
+              key={i}
+              className={`reel-card${landedAbsIdx === i ? ' reel-card-landed' : ''}`}
+              style={{ width: CARD_W }}
+            >
+              <div className="reel-card-icon">{slot.icon}</div>
+              <div className="reel-card-label">{slot.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
+      <div className="reel-pointer reel-pointer-bottom" />
     </div>
   );
 });
