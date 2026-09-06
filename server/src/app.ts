@@ -25,10 +25,29 @@ export function createApp() {
   app.use('/api/admin', adminRoutes);
 
   // Serve the built Mini App (client/dist) as static files in production.
+  //
+  // Telegram's in-app WebView (and third-party Telegram clients especially) can cache
+  // the Mini App page far more aggressively than normal browsers, sometimes ignoring
+  // weak cache hints like `max-age=0`. Vite content-hashes every JS/CSS filename, so
+  // those are 100% safe to cache forever — but index.html (which references those
+  // hashed filenames) must NEVER be cached, or the client keeps loading an old build
+  // that still points at old, possibly-deleted asset files.
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
-  app.use(express.static(clientDist));
+  app.use(
+    express.static(clientDist, {
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    })
+  );
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
+    res.setHeader('Cache-Control', 'no-store');
     res.sendFile(path.join(clientDist, 'index.html'), (err) => {
       if (err) next();
     });
