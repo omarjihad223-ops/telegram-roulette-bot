@@ -1,0 +1,41 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import path from 'path';
+import pinoHttp from 'pino-http';
+import { logger } from './config/logger';
+import { generalLimiter } from './middleware/rateLimit';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import publicRoutes from './routes/public.routes';
+import adminRoutes from './routes/admin.routes';
+
+export function createApp() {
+  const app = express();
+
+  app.set('trust proxy', 1);
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(cors());
+  app.use(express.json({ limit: '1mb' }));
+  app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
+  app.use(generalLimiter);
+
+  app.get('/health', (_req, res) => res.json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() }));
+
+  app.use('/api', publicRoutes);
+  app.use('/api/admin', adminRoutes);
+
+  // Serve the built Mini App (client/dist) as static files in production.
+  const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDist, 'index.html'), (err) => {
+      if (err) next();
+    });
+  });
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  return app;
+}
