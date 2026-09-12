@@ -1,8 +1,9 @@
 import mongoose, { HydratedDocument } from 'mongoose';
 import { User, IUser } from '../models/User';
 import { Referral } from '../models/Referral';
+import { UserPrize } from '../models/UserPrize';
 import { IClaimTask } from '../models/ClaimTask';
-import { createNotification } from './notification.service';
+import { createNotification, notifyAdminsNewReferral } from './notification.service';
 import { creditReferralToTask } from './claimTask.service';
 import { logger } from '../config/logger';
 
@@ -60,6 +61,13 @@ export async function registerReferralIfNew(params: {
     body: `دخل ${newUser.username ? '@' + newUser.username : newUser.firstName || 'مستخدم'} إلى رابطك. راح تُحتسب بعد إكمال الاشتراك الإجباري والتحقق.`,
   });
 
+  const wonPrize = await UserPrize.findById(task.userPrize).select('prizeNameSnapshot');
+  notifyAdminsNewReferral({
+    invitee: { telegramId: newUser.telegramId, username: newUser.username, firstName: newUser.firstName },
+    referrer: { telegramId: referrer.telegramId, username: referrer.username, firstName: referrer.firstName },
+    prizeName: wonPrize?.prizeNameSnapshot ?? 'غير معروف',
+  }).catch((err) => logger.warn({ err }, 'failed to notify admins of new referral'));
+
   return 'registered';
 }
 
@@ -111,7 +119,7 @@ export async function getReferralStats(telegramId: number) {
   const list = await Referral.find({ referrer: user._id })
     .sort({ createdAt: -1 })
     .limit(100)
-    .populate('invitee', 'username firstName telegramId');
+    .populate('invitee', 'username firstName telegramId photoUrl');
 
   return { pending, qualified, total: pending + qualified, referrals: list };
 }

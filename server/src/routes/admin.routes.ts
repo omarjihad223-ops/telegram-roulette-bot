@@ -10,7 +10,11 @@ import {
   adminRemoveStock,
   adminSetStock,
   adminSetPrizeActive,
+  adminUploadPrizeImage,
+  adminClearPrizeImage,
+  adminSetStorePrice,
 } from '../controllers/adminPrize.controller';
+import { uploadPrizeImage, uploadSettingsImage } from '../middleware/upload';
 import {
   adminListWithdrawals,
   adminViewReferralsForWithdrawal,
@@ -35,6 +39,9 @@ import {
   adminListAuditLogs,
   adminGetSettings,
   adminUpdateSettings,
+  adminUploadShareImage,
+  adminClearShareImage,
+  adminResetGameState,
   adminToggleMaintenance,
   adminRunBroadcast,
 } from '../controllers/adminSystem.controller';
@@ -52,6 +59,9 @@ router.post('/prizes/:key/stock/add', adminAddStock);
 router.post('/prizes/:key/stock/remove', adminRemoveStock);
 router.post('/prizes/:key/stock/set', adminSetStock);
 router.post('/prizes/:key/active', adminSetPrizeActive);
+router.post('/prizes/:key/image', uploadPrizeImage, adminUploadPrizeImage);
+router.delete('/prizes/:key/image', adminClearPrizeImage);
+router.post('/prizes/:key/store-price', adminSetStorePrice);
 
 // Withdrawals
 router.get('/withdrawals', adminListWithdrawals);
@@ -82,7 +92,10 @@ router.get('/stats', adminGetStats);
 router.get('/audit-logs', adminListAuditLogs);
 router.get('/settings', adminGetSettings);
 router.patch('/settings', adminUpdateSettings);
+router.post('/settings/share-image', uploadSettingsImage, adminUploadShareImage);
+router.delete('/settings/share-image', adminClearShareImage);
 router.post('/settings/maintenance', adminToggleMaintenance);
+router.post('/reset-game-state', requireOwner, adminResetGameState);
 router.post('/broadcast', adminRunBroadcast);
 
 export default router;

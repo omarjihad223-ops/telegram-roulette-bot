@@ -8,6 +8,7 @@ import { weightedPick } from '../utils/random';
 import { AppError } from '../utils/AppError';
 import { createNotification } from './notification.service';
 import { createClaimTaskForPrize, buildTaskLink } from './claimTask.service';
+import { getEligiblePrizes, prizeImageUrl } from './prize.service';
 import { logger } from '../config/logger';
 
 const MAX_DRAW_RETRIES = 5;
@@ -16,6 +17,8 @@ export interface SpinResult {
   won: boolean;
   prizeName?: string;
   prizeKey?: string;
+  prizeIcon?: string;
+  prizeImageUrl?: string | null;
   userPrizeId?: string;
   expiresAt?: Date | null;
   nextSpinAt: Date;
@@ -85,11 +88,7 @@ export async function performSpin(telegramId: number): Promise<SpinResult> {
   while (attempt < MAX_DRAW_RETRIES) {
     attempt += 1;
 
-    const eligible = await Prize.find({
-      isActive: true,
-      baseWeight: { $gt: 0 },
-      $or: [{ isUnlimited: true }, { stock: { $gt: 0 } }],
-    });
+    const eligible = await getEligiblePrizes();
 
     if (eligible.length === 0) {
       // No prize currently has stock — draw is skipped entirely, no spin is "wasted" on a lie.
@@ -114,6 +113,14 @@ export async function performSpin(telegramId: number): Promise<SpinResult> {
   // Always consume the cooldown regardless of outcome — this IS the user's spin for this window.
   user.lastSpinAt = new Date();
   user.totalSpins += 1;
+  user.spinPoints += 1; // Store currency — 1 per spin, independent of whether they won anything
+  // Remember what actually happened — see the field comments on User for why this matters:
+  // the wheel's visual reel has no memory of a past spin once the page/component remounts.
+  user.lastSpinWon = !!reservedPrize;
+  user.lastSpinPrizeName = reservedPrize?.name ?? null;
+  user.lastSpinPrizeIcon = reservedPrize?.icon ?? null;
+  user.lastSpinPrizeHasImage = reservedPrize?.hasImage ?? null;
+  user.lastSpinPrizeKey = reservedPrize?.key ?? null;
   await user.save();
 
   const weightsSnapshot: Record<string, number> = {};
@@ -160,7 +167,9 @@ export async function performSpin(telegramId: number): Promise<SpinResult> {
     const task = await createClaimTaskForPrize(userPrize);
     const taskLink = buildTaskLink(task.token);
 
-    await createNotification({
+    // Fire-and-forget: the notification is best-effort and shouldn't add its own DB
+    // round-trip to the time the user waits for the spin result to come back.
+    createNotification({
       userId: user._id as mongoose.Types.ObjectId,
       telegramId,
       type: 'prize_won',
@@ -170,7 +179,7 @@ export async function performSpin(telegramId: number): Promise<SpinResult> {
         `لديك 24 ساعة لاستلامها من الحقيبة.\n\n` +
         `⚠️ عشان تكدر تسحبها لازم تدعو ${task.requiredCount} أشخاص عن طريق رابطك الخاص بهذي الجائزة (تلقاه بالحقيبة).` +
         (taskLink ? `\n\n${taskLink}` : ''),
-    });
+    }).catch((err) => logger.error({ err, telegramId }, 'failed to create prize-won notification'));
 
     const { nextSpinAt: newNext } = await checkCooldown(user);
 
@@ -178,6 +187,8 @@ export async function performSpin(telegramId: number): Promise<SpinResult> {
       won: true,
       prizeName: reservedPrize.name,
       prizeKey: reservedPrize.key,
+      prizeIcon: reservedPrize.icon,
+      prizeImageUrl: prizeImageUrl(reservedPrize.key, reservedPrize.hasImage),
       userPrizeId: (userPrize._id as mongoose.Types.ObjectId).toString(),
       expiresAt,
       nextSpinAt: newNext,

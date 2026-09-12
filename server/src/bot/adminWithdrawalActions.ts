@@ -50,8 +50,16 @@ export function registerAdminWithdrawalActions(bot: TelegramBot) {
           await bot.sendMessage(chatId, '⚠️ ماكو أي إحالات مسجلة لهذا الشخص إطلاقاً.');
         } else {
           const lines = referrals.map((r, i) => {
-            const invitee = r.invitee as unknown as { username?: string; telegramId?: number } | null;
-            const who = invitee?.username ? '@' + invitee.username : invitee?.telegramId ? `ID: ${invitee.telegramId}` : 'غير معروف';
+            const invitee = r.invitee as unknown as { username?: string; firstName?: string; telegramId?: number } | null;
+            // Prefer @username, then their Telegram first name, and only fall back to the
+            // bare numeric ID if the person has neither (no @username set, no first name on file).
+            const who = invitee?.username
+              ? '@' + invitee.username
+              : invitee?.firstName
+              ? `${invitee.firstName} (ID: ${invitee.telegramId})`
+              : invitee?.telegramId
+              ? `ID: ${invitee.telegramId}`
+              : 'غير معروف';
             return (
               `${i + 1}. ${who}\n` +
               `   الحالة: ${statusLabel(r.status)}\n` +

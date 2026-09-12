@@ -12,6 +12,7 @@ import { TasksPage } from './pages/TasksPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { AdminPage } from './pages/AdminPage';
+import { StorePage } from './pages/StorePage';
 
 type Stage = 'loading' | 'forced_sub' | 'captcha' | 'ready' | 'error';
 
@@ -69,7 +70,7 @@ export default function App() {
         {me.isAdmin && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: -8 }}>
             <button
-              className="pill"
+              className="pill pill-admin"
               style={{ cursor: 'pointer', border: 'none' }}
               onClick={() => setShowAdmin(true)}
             >
@@ -82,6 +83,9 @@ export default function App() {
         {tab === 'tasks' && <TasksPage />}
         {tab === 'inventory' && <InventoryPage />}
         {tab === 'history' && <HistoryPage />}
+        {tab === 'store' && (
+          <StorePage spinPoints={me.user.spinPoints} onBack={() => setTab('home')} refreshMe={loadMe} />
+        )}
       </div>
       <BottomNav active={tab} onChange={setTab} />
     </div>

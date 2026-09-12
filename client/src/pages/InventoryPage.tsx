@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { api, ApiError } from '../services/api';
 import { InventoryItem } from '../types';
 import { LoadingScreen, EmptyState, StatusBadge } from '../components/Common';
 import { useCountdown } from '../hooks/useCountdown';
 import { haptic, getTelegramWebApp } from '../hooks/useTelegramWebApp';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 
 function ExpiryLabel({ expiresAt }: { expiresAt: string | null }) {
   const { label, isReady } = useCountdown(expiresAt);
@@ -12,10 +13,11 @@ function ExpiryLabel({ expiresAt }: { expiresAt: string | null }) {
   return <span style={{ color: 'var(--accent-2)', fontSize: 12 }}>⏳ {label}</span>;
 }
 
-function TaskProgress({ task, onCopy, onShare }: {
+function TaskProgress({ task, onCopy, onShare, sharing }: {
   task: NonNullable<InventoryItem['task']>;
   onCopy: () => void;
   onShare: () => void;
+  sharing?: boolean;
 }) {
   if (task.status === 'completed') {
     return (
@@ -52,8 +54,8 @@ function TaskProgress({ task, onCopy, onShare }: {
             <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={onCopy}>
               📋 نسخ
             </button>
-            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={onShare}>
-              📤 مشاركة
+            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={onShare} disabled={sharing}>
+              {sharing ? '📤 جاري الإرسال...' : '📤 مشاركة'}
             </button>
           </div>
         </>
@@ -63,18 +65,14 @@ function TaskProgress({ task, onCopy, onShare }: {
 }
 
 export function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[] | null>(null);
+  const { data: items, error, refetch } = useCachedFetch<InventoryItem[]>('inventory', async () => {
+    const res = await api.get<{ ok: true; items: InventoryItem[] }>('/inventory');
+    return res.items;
+  });
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  async function load() {
-    const res = await api.get<{ ok: true; items: InventoryItem[] }>('/inventory');
-    setItems(res.items);
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   function copyLink(link: string) {
     navigator.clipboard?.writeText(link).then(() => {
@@ -83,10 +81,31 @@ export function InventoryPage() {
     });
   }
 
-  function shareLink(link: string) {
-    const tg = getTelegramWebApp();
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('انضم للبوت وجرب حظك 🎰')}`;
-    tg?.openTelegramLink?.(shareUrl);
+  // Opens Telegram's own native "choose chat(s) to send to" picker for a rich card (photo +
+  // caption + inline button) the server prepared via savePreparedInlineMessage — the user
+  // can pick one or several chats in that one dialog and Telegram sends the same card to
+  // each, exactly like Telegram's own "Share Message" feature for bots.
+  async function shareLink(userPrizeId: string) {
+    setSharingId(userPrizeId);
+    haptic('light');
+    try {
+      const res = await api.post<{ ok: true; preparedMessageId: string }>('/inventory/share-card', { userPrizeId });
+      const tg = getTelegramWebApp();
+      if (!tg?.shareMessage) {
+        setToast('نسخة تيليجرام عندك قديمة وما تدعم المشاركة المباشرة، حدّث التطبيق وجرب مرة ثانية.');
+        return;
+      }
+      tg.shareMessage(res.preparedMessageId, (sent) => {
+        if (sent) {
+          setToast('تم إرسال الجائزة ✅');
+          haptic('light');
+        }
+      });
+    } catch {
+      setToast('تعذر تجهيز بطاقة المشاركة، حاول مرة ثانية.');
+    } finally {
+      setSharingId(null);
+    }
   }
 
   async function claim(item: InventoryItem) {
@@ -95,7 +114,7 @@ export function InventoryPage() {
     try {
       await api.post('/inventory/claim', { userPrizeId: item.id });
       setToast('تم إرسال طلب الاستلام، بانتظار المراجعة ⏳');
-      await load();
+      await refetch();
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === 'EXPIRED') setToast('عذراً، انتهت صلاحية هذه الجائزة.');
@@ -110,11 +129,12 @@ export function InventoryPage() {
     }
   }
 
+  if (!items && error) return <LoadingScreen label="تعذر التحميل، حاول لاحقاً" />;
   if (!items) return <LoadingScreen />;
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>🎒 المتجر / حقيبتي</h2>
+      <h2 style={{ marginTop: 0 }}>🎒 المخزون</h2>
 
       {items.length === 0 && (
         <EmptyState icon="🎒" title="حقيبتك فارغة حالياً" subtitle="روح للفرة المجانية ودور عشان تربح جوائز" />
@@ -125,10 +145,25 @@ export function InventoryPage() {
         return (
           <div className="card" key={item.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{item.prizeName}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                  {item.source === 'referral' ? '🎁 مكافأة إحالة' : '🎰 من الفرة المجانية'}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                  />
+                ) : (
+                  <div style={{ fontSize: 32, lineHeight: 1, flexShrink: 0 }}>{item.icon}</div>
+                )}
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{item.prizeName}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                    {item.source === 'referral'
+                      ? '🎁 مكافأة إحالة'
+                      : item.source === 'store'
+                      ? '🏪 من المتجر'
+                      : '🎰 من الفرة المجانية'}
+                  </div>
                 </div>
               </div>
               <StatusBadge status={item.status} />
@@ -138,7 +173,8 @@ export function InventoryPage() {
               <TaskProgress
                 task={item.task}
                 onCopy={() => item.task?.link && copyLink(item.task.link)}
-                onShare={() => item.task?.link && shareLink(item.task.link)}
+                onShare={() => shareLink(item.id)}
+                sharing={sharingId === item.id}
               />
             )}
 

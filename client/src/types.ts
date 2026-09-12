@@ -8,8 +8,13 @@ export interface MeResponse {
     captchaPassed: boolean;
     forcedSubOk: boolean;
     totalSpins: number;
+    spinPoints: number;
   };
-  wheel: { ready: boolean; nextSpinAt: string };
+  wheel: {
+    ready: boolean;
+    nextSpinAt: string;
+    lastSpin: { won: boolean; prizeName: string | null; prizeIcon: string | null; prizeImageUrl: string | null; prizeKey: string | null } | null;
+  };
   isAdmin: boolean;
   adminRole: 'owner' | 'developer' | null;
 }
@@ -25,6 +30,8 @@ export interface SpinResult {
   won: boolean;
   prizeName?: string;
   prizeKey?: string;
+  prizeIcon?: string;
+  prizeImageUrl?: string | null;
   userPrizeId?: string;
   expiresAt?: string | null;
   nextSpinAt: string;
@@ -33,7 +40,9 @@ export interface SpinResult {
 export interface InventoryItem {
   id: string;
   prizeName: string;
-  source: 'wheel' | 'referral';
+  icon: string;
+  imageUrl: string | null;
+  source: 'wheel' | 'referral' | 'store';
   wonAt: string;
   expiresAt: string | null;
   status: 'active' | 'claim_requested' | 'approved' | 'rejected' | 'expired';
@@ -57,7 +66,13 @@ export interface ReferralData {
   pending: number;
   qualified: number;
   total: number;
-  referrals: Array<{ id: string; status: string; createdAt: string; qualifiedAt?: string; invitee: unknown }>;
+  referrals: Array<{
+    id: string;
+    status: string;
+    createdAt: string;
+    qualifiedAt?: string;
+    invitee: { name: string; photoUrl: string | null; profileLink: string } | null;
+  }>;
   rules: string[];
 }
 

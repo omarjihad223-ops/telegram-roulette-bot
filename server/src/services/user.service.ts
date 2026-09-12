@@ -1,6 +1,7 @@
 import { User, IUser } from '../models/User';
 import { HydratedDocument } from 'mongoose';
 import { TelegramInitDataUser } from '../utils/telegramAuth';
+import { notifyAdminsNewUser } from './notification.service';
 
 export async function findOrCreateUser(
   tgUser: TelegramInitDataUser
@@ -18,6 +19,12 @@ export async function findOrCreateUser(
       photoUrl: tgUser.photo_url,
     });
     isNew = true;
+    // Fire-and-forget: don't let a Telegram send failure block user registration.
+    notifyAdminsNewUser({
+      telegramId: user.telegramId,
+      username: user.username,
+      firstName: user.firstName,
+    }).catch(() => {});
   } else {
     // Keep profile fields fresh (username/photo change over time)
     let dirty = false;

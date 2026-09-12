@@ -7,8 +7,8 @@ import { logger } from '../config/logger';
 // this is fine because the roulette engine always normalizes by the total weight
 // of currently-eligible prizes (weight_i / sum_of_eligible_weights), so relative
 // odds are unaffected either way. This is never shown to end users.
-const PRIZES = [
-  { key: 'gems_3000', name: '💎 3000 جوهرة', baseWeight: 30, stock: 1000, displayOrder: 1 },
+export const PRIZES = [
+  { key: 'gems_3000', name: '💎 حساب 3000 جوهرة', baseWeight: 30, stock: 1000, displayOrder: 1 },
   { key: 'stars_15', name: '⭐ 15 نجمة', baseWeight: 30, stock: 1000, displayOrder: 2 },
   { key: 'asia_credit_1', name: '📱 رصيد آسيا 1', baseWeight: 24.8993, stock: 500, displayOrder: 3 },
   { key: 'gems_5000', name: '💎 5000 جوهرة', baseWeight: 9, stock: 500, displayOrder: 4 },
@@ -67,8 +67,14 @@ async function seed() {
   process.exit(0);
 }
 
-seed().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+// Only auto-run when this file is executed directly (`npm run seed`), never when another
+// module (like scripts/syncPrizeNames.ts) imports PRIZES from it — otherwise importing it
+// would silently trigger a full re-seed and then process.exit(0) before the importer's own
+// code ever runs.
+if (require.main === module) {
+  seed().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('Seed failed:', err);
+    process.exit(1);
+  });
+}

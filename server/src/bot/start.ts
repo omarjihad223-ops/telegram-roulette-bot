@@ -4,16 +4,10 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { findOrCreateUser } from '../services/user.service';
 import { registerReferralIfNew } from '../services/referral.service';
-import { getClaimTaskByToken } from '../services/claimTask.service';
+import { getClaimTaskByToken, parseTaskTokenFromStartParam } from '../services/claimTask.service';
 import { checkAllForcedChats } from '../services/forcedSub.service';
 import { getSettings } from '../models/Settings';
 import { getAdminRole } from '../services/admin.service';
-
-function parseTaskTokenFromStartParam(startParam?: string): string | null {
-  if (!startParam) return null;
-  const match = startParam.match(/^task_([A-Za-z0-9_-]+)$/);
-  return match ? match[1] : null;
-}
 
 function buildMiniAppKeyboard(): TelegramBot.SendMessageOptions {
   if (!env.MINI_APP_URL) return {};

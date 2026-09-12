@@ -1,13 +1,13 @@
 import React from 'react';
 import { haptic } from '../hooks/useTelegramWebApp';
 
-export type TabKey = 'home' | 'tasks' | 'wheel' | 'inventory' | 'history';
+export type TabKey = 'home' | 'tasks' | 'wheel' | 'inventory' | 'history' | 'store';
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'home', label: 'الرئيسية', icon: '🏠' },
   { key: 'tasks', label: 'المهام', icon: '🎯' },
   { key: 'wheel', label: 'الدوران', icon: '🎡' },
-  { key: 'inventory', label: 'المتجر', icon: '🎒' },
+  { key: 'inventory', label: 'المخزون', icon: '🎒' },
   { key: 'history', label: 'السجل', icon: '📜' },
 ];
 

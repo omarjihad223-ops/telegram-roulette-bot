@@ -1,13 +1,10 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { WHEEL_SLOTS } from './wheelSlots';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { WheelSlot } from './wheelSlots';
 import { runSpinAnimation } from './spinEasing';
 
-const SLOT_COUNT = WHEEL_SLOTS.length;
-
-// How many times the 15-slot pattern is repeated to build the scrollable strip.
+// How many times the slot pattern is repeated to build the scrollable strip.
 // Large enough that the periodic "rewind" (see spinTo) is invisible and rare.
 const REPEATS = 40;
-const STRIP_LENGTH = SLOT_COUNT * REPEATS;
 
 const CARD_W = 92;
 const CARD_GAP = 12;
@@ -18,62 +15,111 @@ const PITCH = CARD_W + CARD_GAP;
 const FULL_LAPS = 6;
 
 // Once the strip has scrolled this many laps in, snap back by whole laps (same
-// modulo position, so nothing visibly changes) to stay within STRIP_LENGTH forever.
-const REWIND_AFTER_LAPS = REPEATS - 12;
+// modulo position, so nothing visibly changes) to stay bounded forever.
 const REWIND_KEEP_LAPS = 6;
 
-// Start resting somewhere comfortably inside the strip, not at the very edge.
-const INITIAL_IDX = SLOT_COUNT * 10;
-
-export interface WheelHandle {
-  spinTo: (targetSlotIndex: number, durationMs: number, onDone: () => void) => void;
+export interface WheelLandingContent {
+  icon: string;
+  imageUrl: string | null;
+  label: string;
+  key?: string;
 }
 
-export const Wheel = React.forwardRef<WheelHandle, { width?: number }>(function Wheel({ width = 320 }, ref) {
-  const [posIdx, setPosIdx] = useState(INITIAL_IDX);
-  const [landedAbsIdx, setLandedAbsIdx] = useState<number | null>(null);
-  const baseIdxRef = useRef(INITIAL_IDX);
+export interface WheelHandle {
+  spinTo: (
+    targetSlotIndex: number,
+    durationMs: number,
+    onDone: () => void,
+    landingContent?: WheelLandingContent | null
+  ) => void;
+}
 
-  React.useImperativeHandle(ref, () => ({
-    spinTo(targetSlotIndex, durationMs, onDone) {
-      setLandedAbsIdx(null);
+export const Wheel = React.forwardRef<
+  WheelHandle,
+  { slots: WheelSlot[]; width?: number; initialLanding?: { slotIndex: number; content: WheelLandingContent } | null }
+>(function Wheel({ slots, width = 320, initialLanding }, ref) {
+  const slotCount = slots.length || 1;
+  const stripLength = slotCount * REPEATS;
+  const rewindAfterLaps = REPEATS - 12;
+  // If we already know the true last result (from the server, via /me), rest right on that
+  // slot from the very first render — never on an arbitrary position. This is what actually
+  // fixes "the wheel shows the wrong prize": it was never wrong mid-spin, it just had no
+  // memory of anything once the page was freshly opened/revisited, so it defaulted to
+  // whatever card happened to sit at an arbitrary fixed offset.
+  const initialIdx =
+    initialLanding && slotCount > 0 ? slotCount * 10 + ((initialLanding.slotIndex % slotCount) + slotCount) % slotCount : slotCount * 10;
 
-      const currentIdx = baseIdxRef.current;
-      const currentMod = ((currentIdx % SLOT_COUNT) + SLOT_COUNT) % SLOT_COUNT;
-      const deltaToTarget = ((targetSlotIndex - currentMod) % SLOT_COUNT + SLOT_COUNT) % SLOT_COUNT;
-      const totalDeltaIdx = FULL_LAPS * SLOT_COUNT + deltaToTarget;
-      let newIdx = currentIdx + totalDeltaIdx;
+  const [posIdx, setPosIdx] = useState(initialIdx);
+  const [landedAbsIdx, setLandedAbsIdx] = useState<number | null>(initialLanding ? initialIdx : null);
+  // What the server says was actually won, for THIS spin — always wins over slots[i] when
+  // rendering the landed card, so the wheel can never visually disagree with the prize the
+  // player actually receives, no matter what.
+  const [landingOverride, setLandingOverride] = useState<WheelLandingContent | null>(initialLanding?.content ?? null);
+  const baseIdxRef = useRef(initialIdx);
+  const isSpinningRef = useRef(false);
 
-      runSpinAnimation({
-        durationMs,
-        totalRotationDeg: totalDeltaIdx, // unit-agnostic — here it's "slot units", not degrees
-        onFrame: (delta) => setPosIdx(currentIdx + delta),
-        onDone: () => {
-          // Keep the strip from growing forever: rewind by whole laps (invisible — same
-          // modulo position) once we're getting close to the end of the rendered array.
-          if (newIdx > SLOT_COUNT * REWIND_AFTER_LAPS) {
-            const lapsNow = Math.floor(newIdx / SLOT_COUNT);
-            const rewindLaps = lapsNow - REWIND_KEEP_LAPS;
-            newIdx -= rewindLaps * SLOT_COUNT;
-          }
-          baseIdxRef.current = newIdx;
-          setPosIdx(newIdx);
-          setLandedAbsIdx(newIdx);
-          onDone();
-        },
-      });
-    },
-  }));
+  // initialLanding often arrives slightly AFTER this component's first render (the parent
+  // page kicks off a refresh-from-server on mount, which resolves a beat later) — a plain
+  // useState initial value would miss that update entirely. This keeps the rest position in
+  // sync with whatever the server says is true, for as long as no real spin is in flight.
+  useEffect(() => {
+    if (isSpinningRef.current || !initialLanding || slotCount <= 0) return;
+    const target = slotCount * 10 + (((initialLanding.slotIndex % slotCount) + slotCount) % slotCount);
+    baseIdxRef.current = target;
+    setPosIdx(target);
+    setLandedAbsIdx(target);
+    setLandingOverride(initialLanding.content);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLanding?.slotIndex, initialLanding?.content.key, slotCount]);
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      spinTo(targetSlotIndex, durationMs, onDone, landingContent) {
+        isSpinningRef.current = true;
+        setLandedAbsIdx(null);
+        setLandingOverride(null);
+
+        const currentIdx = baseIdxRef.current;
+        const currentMod = ((currentIdx % slotCount) + slotCount) % slotCount;
+        const deltaToTarget = ((targetSlotIndex - currentMod) % slotCount + slotCount) % slotCount;
+        const totalDeltaIdx = FULL_LAPS * slotCount + deltaToTarget;
+        let newIdx = currentIdx + totalDeltaIdx;
+
+        runSpinAnimation({
+          durationMs,
+          totalRotationDeg: totalDeltaIdx, // unit-agnostic — here it's "slot units", not degrees
+          onFrame: (delta) => setPosIdx(currentIdx + delta),
+          onDone: () => {
+            // Keep the strip from growing forever: rewind by whole laps (invisible — same
+            // modulo position) once we're getting close to the end of the rendered array.
+            if (newIdx > slotCount * rewindAfterLaps) {
+              const lapsNow = Math.floor(newIdx / slotCount);
+              const rewindLaps = lapsNow - REWIND_KEEP_LAPS;
+              newIdx -= rewindLaps * slotCount;
+            }
+            baseIdxRef.current = newIdx;
+            setPosIdx(newIdx);
+            setLandedAbsIdx(newIdx);
+            if (landingContent) setLandingOverride(landingContent);
+            isSpinningRef.current = false;
+            onDone();
+          },
+        });
+      },
+    }),
+    [slotCount, rewindAfterLaps]
+  );
 
   const translateX = useMemo(() => width / 2 - (posIdx * PITCH + CARD_W / 2), [posIdx, width]);
 
   const cards = useMemo(
     () =>
-      Array.from({ length: STRIP_LENGTH }, (_, i) => {
-        const slot = WHEEL_SLOTS[i % SLOT_COUNT];
+      Array.from({ length: stripLength }, (_, i) => {
+        const slot = slots[i % slotCount];
         return { i, slot };
       }),
-    []
+    [slots, slotCount, stripLength]
   );
 
   return (
@@ -82,21 +128,26 @@ export const Wheel = React.forwardRef<WheelHandle, { width?: number }>(function 
       <div className="reel-viewport" style={{ width }}>
         <div className="reel-fade reel-fade-left" />
         <div className="reel-fade reel-fade-right" />
-        <div className="reel-window" style={{ width: CARD_W + 10 }} />
-        <div
-          className="reel-strip"
-          style={{ transform: `translateX(${translateX}px)`, gap: CARD_GAP }}
-        >
-          {cards.map(({ i, slot }) => (
-            <div
-              key={i}
-              className={`reel-card${landedAbsIdx === i ? ' reel-card-landed' : ''}`}
-              style={{ width: CARD_W }}
-            >
-              <div className="reel-card-icon">{slot.icon}</div>
-              <div className="reel-card-label">{slot.label}</div>
-            </div>
-          ))}
+        <div className="reel-strip" style={{ transform: `translateX(${translateX}px)`, gap: CARD_GAP }}>
+          {cards.map(({ i, slot }) => {
+            const isLanded = landedAbsIdx === i;
+            const display = isLanded && landingOverride ? landingOverride : slot;
+            return (
+              <div key={i} className={`reel-card${isLanded ? ' reel-card-landed' : ''}`} style={{ width: CARD_W }}>
+                {display.imageUrl ? (
+                  <img src={display.imageUrl} alt="" className="reel-card-image" />
+                ) : (
+                  <div className="reel-card-icon">{display.icon}</div>
+                )}
+                <div className="reel-card-label">{display.label}</div>
+                {isLanded && (
+                  <div style={{ fontSize: 8, color: 'var(--text-dim)', opacity: 0.7, marginTop: 2 }}>
+                    slot:{slot.key} won:{landingOverride?.key ?? '?'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="reel-pointer reel-pointer-bottom" />

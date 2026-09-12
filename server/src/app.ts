@@ -8,6 +8,8 @@ import { generalLimiter } from './middleware/rateLimit';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import publicRoutes from './routes/public.routes';
 import adminRoutes from './routes/admin.routes';
+import { getPrizeImage } from './controllers/roulette.controller';
+import { getShareImage } from './controllers/adminSystem.controller';
 
 export function createApp() {
   const app = express();
@@ -20,6 +22,11 @@ export function createApp() {
   app.use(generalLimiter);
 
   app.get('/health', (_req, res) => res.json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() }));
+
+  // Deliberately outside miniAppAuth: <img> tags can't attach the X-Telegram-Init-Data
+  // header, so this route (and the settings share-image one below) must stay public.
+  app.get('/api/prizes/:key/image', getPrizeImage);
+  app.get('/api/settings/share-image', getShareImage);
 
   app.use('/api', publicRoutes);
   app.use('/api/admin', adminRoutes);

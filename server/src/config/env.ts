@@ -23,6 +23,10 @@ const envSchema = z.object({
   ESCALATION_GROUP_USERNAME: z.string().optional().default('CHJROB'),
   WEBAPP_SECRET: z.string().min(16, 'WEBAPP_SECRET must be a strong random string, at least 16 chars'),
   BOT_USERNAME: z.string().optional().default(''),
+  // Optional: the Mini App's short name as registered in @BotFather (e.g. "app" for
+  // t.me/YourBot/app). When set, referral links open straight into the Mini App instead of
+  // the bot's chat first. Leave empty to keep the current ?start= link format.
+  MINI_APP_SHORT_NAME: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

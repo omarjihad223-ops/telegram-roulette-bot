@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { api } from '../services/api';
+import React from 'react';
 import { ReferralData } from '../types';
 import { LoadingScreen } from '../components/Common';
+import { api } from '../services/api';
+import { useCachedFetch } from '../hooks/useCachedFetch';
+import { getTelegramWebApp } from '../hooks/useTelegramWebApp';
 
 export function TasksPage() {
-  const [data, setData] = useState<ReferralData | null>(null);
+  const { data, error } = useCachedFetch<ReferralData>('referrals', () => api.get<ReferralData>('/referrals'));
 
-  useEffect(() => {
-    api.get<ReferralData>('/referrals').then(setData).catch(() => setData(null));
-  }, []);
-
+  if (!data && error) return <LoadingScreen label="تعذر التحميل، حاول لاحقاً" />;
   if (!data) return <LoadingScreen />;
 
   return (
@@ -41,10 +40,54 @@ export function TasksPage() {
 
       {data.referrals.length > 0 && (
         <div className="card">
-          <h3 className="card-title">👥 إحالاتي</h3>
+          <h3 className="card-title">👥 الأشخاص الي دعوتهم</h3>
           {data.referrals.map((r) => (
-            <div className="list-item" key={r.id}>
-              <span>{new Date(r.createdAt).toLocaleDateString('ar-EG')}</span>
+            <div
+              key={r.id}
+              className="list-item"
+              style={{ cursor: r.invitee ? 'pointer' : 'default' }}
+              onClick={() => {
+                if (!r.invitee) return;
+                if (r.invitee.profileLink.startsWith('https://t.me/')) {
+                  getTelegramWebApp()?.openTelegramLink?.(r.invitee.profileLink);
+                } else {
+                  // No @username on file — best-effort open by numeric ID via Telegram's own URI scheme.
+                  window.location.href = r.invitee.profileLink;
+                }
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {r.invitee?.photoUrl ? (
+                  <img
+                    src={r.invitee.photoUrl}
+                    alt=""
+                    style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: '50%',
+                      background: 'var(--accent-glow)',
+                      color: '#1a0b2e',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: 14,
+                    }}
+                  >
+                    {(r.invitee?.name || '؟').replace('@', '').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{r.invitee?.name || 'مستخدم محذوف'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                    {new Date(r.createdAt).toLocaleDateString('ar-EG')}
+                  </div>
+                </div>
+              </div>
               <span className={`status-badge ${r.status === 'qualified' ? 'status-approved' : 'status-pending'}`}>
                 {r.status === 'qualified' ? 'مؤهلة ✅' : 'قيد الانتظار ⏳'}
               </span>

@@ -11,13 +11,29 @@ export const getMyReferrals = asyncHandler(async (req: Request, res: Response) =
     pending: stats?.pending ?? 0,
     qualified: stats?.qualified ?? 0,
     total: stats?.total ?? 0,
-    referrals: (stats?.referrals ?? []).map((r) => ({
-      id: r._id,
-      status: r.status,
-      createdAt: r.createdAt,
-      qualifiedAt: r.qualifiedAt,
-      invitee: r.invitee,
-    })),
+    referrals: (stats?.referrals ?? []).map((r) => {
+      const invitee = r.invitee as unknown as {
+        telegramId?: number;
+        username?: string;
+        firstName?: string;
+        photoUrl?: string;
+      } | null;
+      return {
+        id: r._id,
+        status: r.status,
+        createdAt: r.createdAt,
+        qualifiedAt: r.qualifiedAt,
+        invitee: invitee
+          ? {
+              name: invitee.username ? '@' + invitee.username : invitee.firstName || 'مستخدم',
+              photoUrl: invitee.photoUrl ?? null,
+              // Opens their Telegram profile directly — by @username when they have one
+              // (most reliable), otherwise by numeric ID via Telegram's tg://user scheme.
+              profileLink: invitee.username ? `https://t.me/${invitee.username}` : `tg://user?id=${invitee.telegramId}`,
+            }
+          : null,
+      };
+    }),
     rules: [
       'كل جائزة تربحها من العجلة لها رابط دعوة خاص فيها بس، تلقاه في حقيبتك.',
       'ممنوع دعوة أشخاص من غير محتوى Bounty.',

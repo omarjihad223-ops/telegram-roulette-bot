@@ -90,6 +90,52 @@ export async function notifyAdminsNewWithdrawal(params: {
   );
 }
 
+function fmtPerson(p: { telegramId: number; username?: string | null; firstName?: string | null }): string {
+  const name = p.username ? '@' + p.username : p.firstName || 'بدون اسم';
+  return `${name}\nID: ${p.telegramId}`;
+}
+
+/** New person opened the bot for the very first time (bot start or Mini App). */
+export async function notifyAdminsNewUser(user: {
+  telegramId: number;
+  username?: string | null;
+  firstName?: string | null;
+}) {
+  await notifyAllAdmins(
+    'system_announcement',
+    '🆕 مستخدم جديد',
+    `انضم للبوت مستخدم جديد:\n\n${fmtPerson(user)}`
+  );
+}
+
+/** Person blocked (or unblocked) the bot's private chat — detected via my_chat_member. */
+export async function notifyAdminsBlockStatus(
+  user: { telegramId: number; username?: string | null; firstName?: string | null },
+  blocked: boolean
+) {
+  await notifyAllAdmins(
+    'system_announcement',
+    blocked ? '🚫 حظر البوت' : '✅ إلغاء حظر البوت',
+    `${blocked ? 'قام بحظر البوت' : 'ألغى حظر البوت'}:\n\n${fmtPerson(user)}`
+  );
+}
+
+/** Someone new joined through a referral link (before qualification, i.e. as soon as it's registered). */
+export async function notifyAdminsNewReferral(params: {
+  invitee: { telegramId: number; username?: string | null; firstName?: string | null };
+  referrer: { telegramId: number; username?: string | null; firstName?: string | null };
+  prizeName: string;
+}) {
+  const { invitee, referrer, prizeName } = params;
+  await notifyAllAdmins(
+    'system_announcement',
+    '👥 إحالة جديدة',
+    `دخل شخص عن طريق رابط إحالة:\n\n${fmtPerson(invitee)}\n\n` +
+      `عن طريق:\n${fmtPerson(referrer)}\n\n` +
+      `الجائزة المستهدفة:\n${prizeName}`
+  );
+}
+
 export async function listUserNotifications(telegramId: number, limit = 50) {
   return Notification.find({ telegramId }).sort({ createdAt: -1 }).limit(limit);
 }

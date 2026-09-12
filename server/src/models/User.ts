@@ -18,6 +18,20 @@ export interface IUser extends Document {
   referredByCampaign?: Types.ObjectId | null; // Which reward campaign this referral belongs to
   lastSpinAt?: Date | null;
   totalSpins: number;
+  // What the user's most recent spin actually resulted in. Purely informational (never used
+  // to decide anything) — its only job is letting the client show "آخر نتيجة: ..." when the
+  // Wheel page is revisited during the cooldown, since the wheel's visual reel has no memory
+  // of a past spin once the component remounts (navigating away and back resets its position
+  // to an arbitrary resting card that has nothing to do with what was actually won).
+  lastSpinWon?: boolean | null;
+  lastSpinPrizeName?: string | null;
+  lastSpinPrizeIcon?: string | null;
+  lastSpinPrizeHasImage?: boolean | null;
+  lastSpinPrizeKey?: string | null;
+  // Spendable currency for the Store — +1 every time the user spins (win or lose), spent
+  // on purchases. Unlike totalSpins (a lifetime stat that only ever goes up), this goes
+  // down when the user buys something.
+  spinPoints: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +55,12 @@ const userSchema = new Schema<IUser>(
     referredByCampaign: { type: Schema.Types.ObjectId, ref: 'ReferralCampaign', default: null },
     lastSpinAt: { type: Date, default: null },
     totalSpins: { type: Number, default: 0 },
+    lastSpinWon: { type: Boolean, default: null },
+    lastSpinPrizeName: { type: String, default: null },
+    lastSpinPrizeIcon: { type: String, default: null },
+    lastSpinPrizeHasImage: { type: Boolean, default: null },
+    lastSpinPrizeKey: { type: String, default: null },
+    spinPoints: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

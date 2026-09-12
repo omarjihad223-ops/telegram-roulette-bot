@@ -13,6 +13,12 @@ export interface ISettings extends Document {
   // How many qualified referrals a user must bring in (through that specific prize's own
   // link) before they're allowed to withdraw a wheel prize.
   claimReferralsRequired: number;
+  // Optional image sent as part of the rich "share your prize" card the bot sends the
+  // user (which they then forward to friends). Stored directly in MongoDB (not local disk —
+  // see the same note on Prize.imageData for why). hasShareImage=false means plain text.
+  shareImageData: Buffer | null;
+  shareImageMimeType: string | null;
+  hasShareImage: boolean;
   updatedAt: Date;
   createdAt: Date;
 }
@@ -27,6 +33,9 @@ const settingsSchema = new Schema<ISettings>(
     referralBonusEnabled: { type: Boolean, default: false },
     referralBonusPrizeKey: { type: String, default: null },
     claimReferralsRequired: { type: Number, default: 5 },
+    shareImageData: { type: Buffer, default: null, select: false },
+    shareImageMimeType: { type: String, default: null },
+    hasShareImage: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

@@ -115,7 +115,14 @@ export async function getReferralsForWithdrawal(withdrawalId: string) {
  */
 export async function listReferralsForWithdrawal(withdrawalId: string) {
   const withdrawal = await getReferralsForWithdrawal(withdrawalId);
-  const referrals = await Referral.find({ referrer: withdrawal.user })
+  // Scoped to the specific prize's claim task — a user with several prizes has a
+  // separate set of 5 referrals per prize, so this must not show referrals made
+  // for their other, unrelated prizes.
+  const claimTask = await getClaimTaskForUserPrize(withdrawal.userPrize);
+  const referrals = await Referral.find({
+    referrer: withdrawal.user,
+    ...(claimTask ? { creditedTaskId: claimTask._id } : {}),
+  })
     .populate('invitee', 'username firstName telegramId')
     .sort({ createdAt: -1 });
   return { withdrawal, referrals };

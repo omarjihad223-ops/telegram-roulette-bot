@@ -9,6 +9,7 @@ export function HomePage({ me, onNavigate }: { me: MeResponse; onNavigate: (t: T
 
   return (
     <div>
+      <div className="brand-title">🎯 روليت باونتي <span className="brand-mf">MF</span></div>
       <div className="header-row">
         <div className="user-badge">
           {me.user.photoUrl ? (
@@ -30,16 +31,26 @@ export function HomePage({ me, onNavigate }: { me: MeResponse; onNavigate: (t: T
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>مرحباً بك 👋</div>
           </div>
         </div>
-        <div className="pill">🎰 {me.user.totalSpins}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="pill">🎰 {me.user.totalSpins}</div>
+          <button
+            className="pill pill-store"
+            style={{ cursor: 'pointer', border: 'none' }}
+            onClick={() => onNavigate('store')}
+            title="رصيدك الحالي بالفرات القابلة للصرف"
+          >
+            🏪 المتجر ({me.user.spinPoints})
+          </button>
+        </div>
       </div>
 
-      <div className="card" onClick={() => onNavigate('wheel')} style={{ cursor: 'pointer' }}>
+      <div className="card card-featured" onClick={() => onNavigate('wheel')} style={{ cursor: 'pointer' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 className="card-title">🎰 الفرة المجانية</h2>
+            <h2 className="card-title card-title-lg">🎰 الفرة المجانية</h2>
             <p className="card-sub">دور كل يوم واربح جوائز</p>
           </div>
-          <div style={{ fontSize: 40 }}>🎡</div>
+          <div style={{ fontSize: 56 }}>🎡</div>
         </div>
         <div style={{ marginTop: 14 }}>
           {isReady ? (
@@ -58,7 +69,7 @@ export function HomePage({ me, onNavigate }: { me: MeResponse; onNavigate: (t: T
       </div>
 
       <div className="card" onClick={() => onNavigate('inventory')} style={{ cursor: 'pointer' }}>
-        <h2 className="card-title">🎒 المتجر / حقيبتي</h2>
+        <h2 className="card-title">🎒 المخزون</h2>
         <p className="card-sub">شوف جوائزك واستلمها قبل ما تنتهي</p>
       </div>
     </div>

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { api } from '../services/api';
 import { NotificationItem } from '../types';
 import { LoadingScreen, EmptyState } from '../components/Common';
+import { useCachedFetch } from '../hooks/useCachedFetch';
 
 const ICONS: Record<string, string> = {
   prize_won: '🎁',
@@ -16,13 +17,16 @@ const ICONS: Record<string, string> = {
 };
 
 export function HistoryPage() {
-  const [items, setItems] = useState<NotificationItem[] | null>(null);
+  const { data: items, error } = useCachedFetch<NotificationItem[]>('notifications', async () => {
+    const res = await api.get<{ ok: true; items: NotificationItem[] }>('/notifications');
+    return res.items;
+  });
 
   useEffect(() => {
-    api.get<{ ok: true; items: NotificationItem[] }>('/notifications').then((res) => setItems(res.items));
     api.post('/notifications/read').catch(() => {});
   }, []);
 
+  if (!items && error) return <LoadingScreen label="تعذر التحميل، حاول لاحقاً" />;
   if (!items) return <LoadingScreen />;
 
   return (

@@ -2,11 +2,64 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { getDashboardStats } from '../services/stats.service';
 import { AuditLog } from '../models/AuditLog';
-import { getSettings } from '../models/Settings';
+import { getSettings, Settings } from '../models/Settings';
 import { writeAudit } from '../models/AuditLog';
 import { AppError } from '../utils/AppError';
 import { runBroadcast, BroadcastTarget, BroadcastButton } from '../services/broadcast.service';
 import { getBotInstance } from '../bot/instance';
+import { resetGameState } from '../services/gameReset.service';
+
+/**
+ * Wipes all user progress (inventories, spin-points, referrals) but never the prize
+ * catalog. Requires the exact phrase "RESET" in the request body as a server-side
+ * confirmation — a stray/misclicked request without it is rejected outright, on top of
+ * whatever confirmation dialog the admin panel shows before sending this.
+ */
+export const adminResetGameState = asyncHandler(async (req: Request, res: Response) => {
+  const { confirm } = req.body as { confirm?: string };
+  if (confirm !== 'RESET') {
+    throw new AppError('Send { confirm: "RESET" } to actually perform this — too dangerous to trigger by accident', 422, 'CONFIRMATION_REQUIRED');
+  }
+  const summary = await resetGameState(req.telegramId!, req.dbUser!.username);
+  res.json({ ok: true, summary });
+});
+
+export const adminUploadShareImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw new AppError('لم يتم إرفاق صورة', 422, 'VALIDATION_ERROR');
+  const settings = await getSettings();
+  settings.shareImageData = req.file.buffer;
+  settings.shareImageMimeType = req.file.mimetype;
+  settings.hasShareImage = true;
+  await settings.save();
+  await writeAudit({
+    actorId: req.telegramId!,
+    actorUsername: req.dbUser!.username,
+    action: 'settings.update',
+    metadata: { hasShareImage: true, sizeBytes: req.file.buffer.length },
+  });
+  res.json({ ok: true, settings: { ...settings.toObject(), shareImageUrl: '/api/settings/share-image' } });
+});
+
+export const adminClearShareImage = asyncHandler(async (req: Request, res: Response) => {
+  const settings = await getSettings();
+  settings.shareImageData = null;
+  settings.shareImageMimeType = null;
+  settings.hasShareImage = false;
+  await settings.save();
+  await writeAudit({ actorId: req.telegramId!, actorUsername: req.dbUser!.username, action: 'settings.update', metadata: { hasShareImage: false } });
+  res.json({ ok: true, settings: { ...settings.toObject(), shareImageUrl: null } });
+});
+
+/** Public (unauthenticated) route — streams the configured share-card image straight from
+ * MongoDB. Used both by <img> previews in the admin panel and as the photo_url Telegram
+ * fetches when building the prepared inline share message. */
+export const getShareImage = asyncHandler(async (_req: Request, res: Response) => {
+  const settings = await Settings.findOne({ singleton: 'main' }).select('+shareImageData shareImageMimeType hasShareImage');
+  if (!settings || !settings.hasShareImage || !settings.shareImageData) throw new AppError('Image not found', 404, 'NOT_FOUND');
+  res.setHeader('Content-Type', settings.shareImageMimeType || 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(settings.shareImageData);
+});
 
 export const adminGetStats = asyncHandler(async (req: Request, res: Response) => {
   const stats = await getDashboardStats();
@@ -28,7 +81,7 @@ export const adminListAuditLogs = asyncHandler(async (req: Request, res: Respons
 
 export const adminGetSettings = asyncHandler(async (req: Request, res: Response) => {
   const settings = await getSettings();
-  res.json({ ok: true, settings });
+  res.json({ ok: true, settings: { ...settings.toObject(), shareImageUrl: settings.hasShareImage ? '/api/settings/share-image' : null } });
 });
 
 export const adminUpdateSettings = asyncHandler(async (req: Request, res: Response) => {

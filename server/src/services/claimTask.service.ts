@@ -34,7 +34,22 @@ export async function createClaimTaskForPrize(
 
 export function buildTaskLink(token: string): string | null {
   if (!env.BOT_USERNAME) return null;
+  // If a Mini App short name is configured (set once in @BotFather), link straight into the
+  // app itself instead of the bot's chat — one tap fewer for the invited friend. Telegram
+  // delivers whatever follows startapp= as start_param in the Mini App's initData either way,
+  // so referral capture (registerReferralIfNew, wired in both bot/start.ts and getMe) works
+  // identically regardless of which link format was used.
+  if (env.MINI_APP_SHORT_NAME) {
+    return `https://t.me/${env.BOT_USERNAME}/${env.MINI_APP_SHORT_NAME}?startapp=task_${token}`;
+  }
   return `https://t.me/${env.BOT_USERNAME}?start=task_${token}`;
+}
+
+/** Extracts the claim-task token from a start_param/start command payload like "task_XYZ". */
+export function parseTaskTokenFromStartParam(startParam?: string | null): string | null {
+  if (!startParam) return null;
+  const match = startParam.match(/^task_([A-Za-z0-9_-]+)$/);
+  return match ? match[1] : null;
 }
 
 export async function getClaimTaskByToken(token: string) {
