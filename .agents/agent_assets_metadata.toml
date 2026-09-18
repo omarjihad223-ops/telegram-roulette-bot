@@ -1,0 +1,198 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "S6qPiuScafiUHCOlgFapk"
+uri = "file://exports/roulette-bot-updated.zip"
+type = "unspecified"
+title = "بوت Bounty Rush — النسخة المعدّلة ZIP"
+description = "نسخة مستقلة للسيرفر والميني آب، مع إصلاح الروليت والتصميم الجديد وتعليمات عربية. لا تحتوي على الأسرار أو بيانات قاعدة البيانات."
+logical_id = "aa68ba42-56a1-4a36-8ddf-1e9cd06c02f9"
+content_hash = "sha256:bcc95d5c952bef8300ba7750e9d2961ae8b174c1464157b27404ab300740f7d9"
+size = 4643396
+mtime_ms = 1789656342769
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/aa68ba42-56a1-4a36-8ddf-1e9cd06c02f9/3d97d1e7-dbc5-46dd-8394-e95d985672b0"
+storage_version_token = "1789656387690058"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "sz0NJjemwx-E0kQjGNXH_"
+uri = "file://exports/bounty-rush-roulette-modified.zip"
+type = "unspecified"
+title = "Bounty Rush Roulette — النسخة المعدلة"
+description = "ملف ZIP محدث يحتوي آخر إصلاحات العجلة، روابط Mini App المباشرة، تحسينات الواجهة، وكود الـ API بدون node_modules أو أسرار."
+logical_id = "2f47db7b-bf6e-4dff-9f0e-ae2ab342c2cc"
+content_hash = "sha256:8132e3cff660d2e1f414bc8e7e93f1c7ae7a26adf3c36b0774d2f0895d9977f3"
+size = 924491
+mtime_ms = 1789660962499
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/2f47db7b-bf6e-4dff-9f0e-ae2ab342c2cc/92fa93f5-13bc-412c-a042-1ae8c02635cb"
+storage_version_token = "1789660967496267"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "DpfQtVJjKs_qCX52omXmB"
+uri = "file://exports/bounty-rush-roulette-render.zip"
+type = "unspecified"
+title = "Bounty Rush Roulette — Render Docker ZIP"
+description = "نسخة محدثة جاهزة لـ Render باستخدام Dockerfile. تحتوي الواجهة والـ API في حاوية واحدة، مع إعدادات health check وتعليمات التشغيل العربية."
+logical_id = "cf7d61d8-ead4-4eda-85d1-26bc7cbf54d7"
+content_hash = "sha256:ec2b366a31da6a65841dea70900543e476cef9373483e5425b6fbb58be00f593"
+size = 930220
+mtime_ms = 1789668984942
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/cf7d61d8-ead4-4eda-85d1-26bc7cbf54d7/df1c3def-d0e4-400f-b23e-ed50b757f5a2"
+storage_version_token = "1789668991230969"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "yfAZBGe-sdU9I-9uCwEhY"
+uri = "file://exports/bounty-rush-roulette-render-final.zip"
+type = "unspecified"
+title = "Bounty Rush Roulette — ZIP محدث"
+description = "النسخة المحدثة: احتمال حظ أوفر مستقل من أصل 100، تصميم رئيسية مرتب، صورة واسم المستخدم، والمتجر فوق وعدد الفرات تحته. جاهزة لـ Render."
+logical_id = "2e8a0741-1fac-4f68-9b14-6715318c63eb"
+content_hash = "sha256:4802c6b49587c22b1389d4cc9f3135ad45d892db161420e7565b815dda55623f"
+size = 933734
+mtime_ms = 1789674309715
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/2e8a0741-1fac-4f68-9b14-6715318c63eb/190dfedd-cb6f-43a5-bca2-2285cb28208a"
+storage_version_token = "1789674347058770"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "1IlLUh-YXgUp0jCr55nvu"
+uri = "file://exports/bounty-rush-roulette-daily-points.zip"
+type = "unspecified"
+title = "Bounty Rush — ملف البوت الكامل"
+description = "أرشيف كامل جاهز للتنزيل يحتوي API والخادم، Mini App، النماذج، routes، الواجهة وملفات المشروع."
+logical_id = "79f64d4d-e430-4ede-8329-886f879c7268"
+content_hash = "sha256:50bbf3154f35c28fe2a0aae8dada7c8e043cc5b76013b8fa217ea0e867903610"
+size = 72506194
+mtime_ms = 1789690315202
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/79f64d4d-e430-4ede-8329-886f879c7268/f6e806c8-fe31-4bdb-8589-d16d67a427c1"
+storage_version_token = "1789690417215738"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "YIu_mh1pV8yvYZeCS9AOr"
+uri = "file://exports/bounty-rush-roulette-source.zip"
+type = "unspecified"
+title = "Bounty Rush — ملف معدل نظيف"
+description = "نسخة ZIP خفيفة ومتوافقة للفتح والتنزيل، بدون node_modules وملفات build الكبيرة، وتحتوي كامل كود البوت والواجهة والأصول."
+logical_id = "8f9f32b5-ea77-4809-b7a8-a33c1234feab"
+content_hash = "sha256:bb309823fb35dbf6b323b4dd009d5dd13059e4ea5c7e91af51630aefc0bcf247"
+size = 4437840
+mtime_ms = 1789718780732
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/8f9f32b5-ea77-4809-b7a8-a33c1234feab/dc05fd87-7c4f-4a61-97bd-b48b3b6f69c4"
+storage_version_token = "1789718786939648"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Y9nogca469JB8XjBnODzA"
+uri = "file://exports/bounty-rush-roulette-render-ready.zip"
+type = "unspecified"
+title = "Bounty Rush — Render Docker جاهز"
+description = "حزمة نشر كاملة لـ Render تحتوي Dockerfile وrender.yaml وملفات الخادم والواجهة، وتم اختبار Docker build عليها بنجاح."
+logical_id = "ee287ffe-b562-4f66-b0c8-db7c04f3e73b"
+content_hash = "sha256:72400ad8048c5e6fbfe78a01f247ba7236ce33510cdf8b89d389824332b548b0"
+size = 938536
+mtime_ms = 1789719314684
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/ee287ffe-b562-4f66-b0c8-db7c04f3e73b/8e09c003-5e60-45bc-bc2b-a1732d429268"
+storage_version_token = "1789719320446158"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "haHeHp-ayicU571NT826x"
+uri = "file://exports/roulette-bot-render-ready.zip"
+type = "unspecified"
+title = "Bounty Rush — Render Ready"
+description = "نسخة Render النهائية بعد فصل إعدادات العجلتين وإضافة رابط الإحالة وشريط آخر الجوائز."
+logical_id = "7544d345-3ddf-482b-b8f7-241c91557666"
+content_hash = "sha256:84d640e106c6d52ed6d7e85ad166deb91e5cc2e970e397975957fc2efd8c99d2"
+size = 62960582
+mtime_ms = 1789727816366
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/7544d345-3ddf-482b-b8f7-241c91557666/e7bd07e9-e3e6-4ea0-9ffa-b1361f7bc0e7"
+storage_version_token = "1789727848420411"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "2JHGfhskuZiT-BwEASRxw"
+uri = "file://exports/roulette-bot-render-direct.zip"
+type = "unspecified"
+title = "Bounty Rush — Render Direct Upload"
+description = "ملف ZIP خفيف جاهز للرفع، بداخله مجلد roulette-bot وفيه ملفات Docker وRender والمشروع الكامل بدون node_modules أو ملفات المعاينة."
+logical_id = "0756431f-51f1-44b0-ad1d-ea1b58e9a9c4"
+content_hash = "sha256:5ecdf1448941dcdffe37a4ba50f45048ad833366df33ea0184b11300988dc26f"
+size = 871902
+mtime_ms = 1789728762246
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/0756431f-51f1-44b0-ad1d-ea1b58e9a9c4/bc9c2098-e8b4-4abb-b874-f2b5aba51118"
+storage_version_token = "1789728766647013"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "C1435LT-W0dlh7zhjYBYy"
+uri = "file://exports/roulette-bot-render-final-20260918.zip"
+type = "unspecified"
+title = "Bounty Rush Render package"
+description = "Ready-to-upload roulette-bot ZIP with the delivery-account login flow, live forced-subscription checks, referral-link fix, and Render configuration."
+logical_id = "12306950-ea56-47ce-a4f9-18bfc8a5d959"
+content_hash = "sha256:8a63c4a7114bc704aa56f78b733326ab0275bcf9addce700284dac4555cfa29f"
+size = 975617
+mtime_ms = 1789736667894
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/12306950-ea56-47ce-a4f9-18bfc8a5d959/22c37f5e-0ca5-4519-9e39-0047f56da6ee"
+storage_version_token = "1789736733879261"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "MmOLJJQA0L5TyjTfAPHjW"
+uri = "file://exports/roulette-bot-render-fixed-bufferutil.zip"
+type = "unspecified"
+title = "Bounty Rush Render package — startup fix"
+description = "Corrected ZIP that bundles GramJS WebSocket fallbacks so Render no longer fails with Cannot find module bufferutil."
+logical_id = "d586e94c-6cc3-4c8a-96de-81d2c49afd47"
+content_hash = "sha256:b31f6f83d5a6eee2e852737c6a24007d824a0c06b63ac497941778fb03b6f06d"
+size = 976595
+mtime_ms = 1789737870393
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/d586e94c-6cc3-4c8a-96de-81d2c49afd47/3f7c8996-7136-4140-aa86-6c195722bd08"
+storage_version_token = "1789737913704915"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FHR_Ew-btzmnFJjbXgwfU"
+uri = "file://exports/roulette-bot-render-subscription-delivery-fix-20260918.zip"
+type = "unspecified"
+title = "Bounty Rush Render package — subscription and delivery fixes"
+description = "Updated source package with the forced-subscription gate fix, readable delivery-contact buttons, message verification, and Telegram contact creation fix."
+logical_id = "b58c0050-2243-4208-889b-b1026f3212d8"
+content_hash = "sha256:94fa87735e3584c9704dcf45adde194de1d78182886cec9964044256215425aa"
+size = 979273
+mtime_ms = 1789740462722
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/b58c0050-2243-4208-889b-b1026f3212d8/bde5daa6-b732-40cb-9a08-4e9244f22db0"
+storage_version_token = "1789740481108888"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "OMGMzyv3kF9fA_3cYbg8d"
+uri = "file://exports/roulette-bot-render-outgoing-verification-20260918.zip"
+type = "unspecified"
+title = "Bounty Rush Render package — outgoing verification"
+description = "Final package: users add the delivery account, then the delivery account sends the verification message; incoming-message auto-replies and the old contact-add handler are removed."
+logical_id = "fe61ef84-7e99-4c57-90f7-e0af9723b7ad"
+content_hash = "sha256:a64ee728859d4f047dd9f10fc787ae4b8187a13a2e8432cc59fbeab6784affef"
+size = 979332
+mtime_ms = 1789742057280
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/fe61ef84-7e99-4c57-90f7-e0af9723b7ad/94c90f9d-ea28-45c3-b8b1-0f8488cd75a1"
+storage_version_token = "1789742161143186"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "l77pkO6Y0WXgaAi1suRGj"
+uri = "file://exports/bounty-rush-render-full-admin-gifts-20260918.zip"
+type = "unspecified"
+title = "Bounty Rush — Render package with admin commands and gifts"
+description = "Complete compressed package under 10MB: Telegram admin commands, delivery order IDs and delivery status, rejected-prize stock restoration, one-use gift links for points/daily spins/prizes, and the developer-panel gift-link tab."
+logical_id = "f5e3fd23-2c05-44de-b9bc-0a67ebb7327c"
+content_hash = "sha256:56be6052f66187d76ef3efa361264b05fba616eda28195e8fa008f1949e5c1a0"
+size = 987900
+mtime_ms = 1789752087266
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:ded8c0f1-3629-440c-8223-4000a002bfe5/f5e3fd23-2c05-44de-b9bc-0a67ebb7327c/fb911957-6f2e-4342-83b3-6e40dbeb9d39"
+storage_version_token = "1789752119036369"
+content_type = "application/octet-stream"

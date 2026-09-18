@@ -1,0 +1,5 @@
+- [Telegram SDK compatibility](telegram-sdk-compatibility.md) — the uploaded bot depends on the 0.x SDK interface; a latest-version install is not a drop-in upgrade.
+- [Telegram menu verification](telegram-menu-verification.md) — verify the returned menu state; a successful write response alone does not confirm the Mini App button.
+- [Daily login and points wheel](daily-points-wheel.md) — daily and paid spins share prizes but keep separate cooldown and balance rules.
+- [Render frontend builds](render-build-environment.md) — standalone Vite builds require PORT and BASE_PATH; the Docker build supplies both explicitly.
+- [Telegram user client runtime](telegram-user-client-runtime.md) — GramJS WebSocket helpers must be bundled or explicitly retained in the production image.

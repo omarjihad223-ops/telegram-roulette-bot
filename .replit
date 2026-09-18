@@ -1,0 +1,42 @@
+modules = ["nodejs-24", "python-base-3.13"]
+
+[deployment]
+router = "application"
+deploymentTarget = "gce"
+ignorePorts = false
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+OWNER_ID = "7126816492"
+MINI_APP_SHORT_NAME = "MFR"
+BOT_USERNAME = "MfRuLiTbot"
+
+[userenv.development]
+BACKGROUND_JOBS_ENABLED = "false"
+BOT_POLLING_ENABLED = "false"
+GAMEPLAY_ENABLED = "false"
+
+[userenv.production]
+BACKGROUND_JOBS_ENABLED = "true"
+BOT_POLLING_ENABLED = "true"
+GAMEPLAY_ENABLED = "true"
+MINI_APP_URL = "https://bounty-rush-roulette-bot.replit.app"
+
+[nix]
+channel = "stable-25_05"
