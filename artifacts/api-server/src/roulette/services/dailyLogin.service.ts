@@ -1,0 +1,192 @@
+import mongoose from 'mongoose';
+import { Prize, IPrize } from '../models/Prize';
+import { User } from '../models/User';
+import { UserPrize } from '../models/UserPrize';
+import { AppError } from '../utils/AppError';
+import { prizeImageUrl } from './prize.service';
+import { createClaimTaskForPrize } from './claimTask.service';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const DAILY_REWARDS = [
+  { day: 1, type: 'points' as const, points: 0.5 },
+  { day: 2, type: 'points' as const, points: 1 },
+  { day: 3, type: 'points' as const, points: 2 },
+  { day: 4, type: 'points' as const, points: 3 },
+  { day: 5, type: 'prize' as const, prizeKey: 'gems_3000' },
+  { day: 6, type: 'points' as const, points: 5 },
+  { day: 7, type: 'prize' as const, prizeKey: 'gems_5000' },
+];
+
+export function getDailyReward(day: number) {
+  return DAILY_REWARDS.find((reward) => reward.day === day) ?? DAILY_REWARDS[0];
+}
+
+function rewardView(day: number, reward: ReturnType<typeof getDailyReward>, prize?: { name: string; key: string; icon: string; hasImage: boolean }) {
+  return {
+    day,
+    type: reward.type,
+    points: reward.type === 'points' ? reward.points : null,
+    prizeKey: prize?.key ?? null,
+    prizeName: prize?.name ?? null,
+    prizeIcon: prize?.icon ?? null,
+    prizeImageUrl: prize ? prizeImageUrl(prize.key, prize.hasImage) : null,
+  };
+}
+
+/**
+ * Which streak day the next claim lands on. Missing a full 24-hour window after the claim
+ * window opened (48h since the last claim) resets the cycle to day one.
+ */
+export function computeNextDay(
+  user: { dailyLastClaimAt?: Date | null; dailyStreakDay?: number },
+  now: Date
+): { nextDay: number; missedWindow: boolean } {
+  const lastClaim = user.dailyLastClaimAt?.getTime() ?? 0;
+  const elapsed = lastClaim ? now.getTime() - lastClaim : Number.POSITIVE_INFINITY;
+  const missedWindow = Boolean(lastClaim) && elapsed >= DAY_MS * 2;
+  const streak = user.dailyStreakDay || 0;
+  const nextDay = missedWindow || !lastClaim || streak >= 7 ? 1 : streak + 1;
+  return { nextDay, missedWindow };
+}
+
+/**
+ * Read-only view of the daily login state. Opening the app never claims anything: the user
+ * has to press "collect", which calls claimDailyLogin().
+ */
+export async function getDailyLoginStatus(telegramId: number) {
+  const user = await User.findOne({ telegramId });
+  if (!user) throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+
+  const now = new Date();
+  const lastClaim = user.dailyLastClaimAt?.getTime() ?? 0;
+  const canClaim = !lastClaim || now.getTime() - lastClaim >= DAY_MS;
+
+  if (!canClaim) {
+    const currentDay = user.dailyStreakDay || 1;
+    const currentReward = getDailyReward(currentDay);
+    const prize = currentReward.type === 'prize' && currentReward.prizeKey ? await Prize.findOne({ key: currentReward.prizeKey }) : null;
+    return {
+      canClaim: false,
+      streakReset: false,
+      streakDay: currentDay,
+      claimedDays: user.dailyClaimedDays ?? [],
+      nextClaimAt: new Date(lastClaim + DAY_MS),
+      resetAt: new Date(lastClaim + DAY_MS * 2),
+      reward: rewardView(currentDay, currentReward, prize ?? undefined),
+    };
+  }
+
+  const { nextDay, missedWindow } = computeNextDay(user, now);
+  const nextReward = getDailyReward(nextDay);
+  const prize = nextReward.type === 'prize' && nextReward.prizeKey ? await Prize.findOne({ key: nextReward.prizeKey }) : null;
+  return {
+    canClaim: true,
+    streakReset: missedWindow,
+    streakDay: nextDay,
+    // Days already collected in the current cycle (empty when this claim starts a new one).
+    claimedDays: nextDay === 1 ? [] : user.dailyClaimedDays ?? [],
+    nextClaimAt: now,
+    resetAt: lastClaim ? new Date(lastClaim + DAY_MS * 2) : null,
+    reward: rewardView(nextDay, nextReward, prize ?? undefined),
+  };
+}
+
+/**
+ * Claims one daily reward when the user presses collect after its 24-hour window. Missing a full
+ * window resets the cycle to day one without awarding the skipped day.
+ */
+export async function claimDailyLogin(telegramId: number) {
+  const session = await mongoose.startSession();
+  try {
+    let response: Record<string, unknown> | null = null;
+    await session.withTransaction(async () => {
+      const user = await User.findOne({ telegramId }).session(session);
+      if (!user) throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+      if (user.isBanned) throw new AppError('User is banned', 403, 'BANNED');
+
+      const now = new Date();
+      const lastClaim = user.dailyLastClaimAt?.getTime() ?? 0;
+      const elapsed = lastClaim ? now.getTime() - lastClaim : Number.POSITIVE_INFINITY;
+      if (lastClaim && elapsed < DAY_MS) {
+        const nextClaimAt = new Date(lastClaim + DAY_MS);
+        const currentReward = getDailyReward(user.dailyStreakDay || 1);
+        const prize =
+          currentReward.type === 'prize' && currentReward.prizeKey
+            ? await Prize.findOne({ key: currentReward.prizeKey }).session(session)
+            : undefined;
+        response = {
+          claimed: true,
+          alreadyClaimed: true,
+          streakDay: user.dailyStreakDay || 1,
+          claimedDays: user.dailyClaimedDays ?? [],
+          nextClaimAt,
+          reward: rewardView(user.dailyStreakDay || 1, currentReward, prize ?? undefined),
+          spinPoints: user.spinPoints,
+          spinCredits: user.spinCredits ?? 0,
+        };
+        return;
+      }
+
+      const { nextDay, missedWindow } = computeNextDay(user, now);
+      const reward = getDailyReward(nextDay);
+      let prizeDoc: mongoose.HydratedDocument<IPrize> | null = null;
+
+      if (reward.type === 'prize' && reward.prizeKey) {
+        // Daily streak prizes are always given: they don't depend on (or take from) the
+        // wheel's stock, so an out-of-stock or hidden prize never blocks the reward.
+        prizeDoc = await Prize.findOne({ key: reward.prizeKey }).session(session);
+        if (!prizeDoc) {
+          throw new AppError('Daily reward is not available yet', 409, 'DAILY_REWARD_UNAVAILABLE');
+        }
+      }
+
+      const claimedDays = missedWindow || nextDay === 1 ? [1] : [...(user.dailyClaimedDays ?? []), nextDay];
+      user.dailyStreakDay = nextDay;
+      user.dailyLastClaimAt = now;
+      user.dailyClaimedDays = [...new Set(claimedDays)];
+
+      if (reward.type === 'points') {
+        user.spinPoints += reward.points;
+      } else if (prizeDoc) {
+        const [dailyPrize] = await UserPrize.create(
+          [
+            {
+              user: user._id,
+              telegramId,
+              prize: prizeDoc._id,
+              prizeNameSnapshot: prizeDoc.name,
+              source: 'daily',
+              wonAt: now,
+              expiresAt: null,
+              status: 'active',
+              // Nothing was reserved from stock, so there is never anything to give back.
+              stockReleasedAt: now,
+            },
+          ],
+          { session }
+        );
+        await createClaimTaskForPrize(dailyPrize, {
+          requiredCount: 5,
+          session,
+          now,
+        });
+      }
+
+      await user.save({ session });
+      response = {
+        claimed: true,
+        alreadyClaimed: false,
+        streakDay: nextDay,
+        claimedDays: user.dailyClaimedDays,
+        nextClaimAt: new Date(now.getTime() + DAY_MS),
+        reward: rewardView(nextDay, reward, prizeDoc ?? undefined),
+        spinPoints: user.spinPoints,
+        spinCredits: user.spinCredits ?? 0,
+      };
+    });
+    return response;
+  } finally {
+    await session.endSession();
+  }
+}
