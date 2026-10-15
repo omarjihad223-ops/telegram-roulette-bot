@@ -1,0 +1,93 @@
+import { Request, Response } from 'express';
+import { asyncHandler } from '../utils/asyncHandler';
+import { AppError } from '../utils/AppError';
+import {
+  adsgramConfirmedSince,
+  claimAdTask,
+  finishSnakeRound,
+  getGamesAdminSettings,
+  getGamesStatus,
+  recordAdsgramReward,
+  startSnakeRound,
+  startZigguratRound,
+  finishZigguratRound,
+  startFlappyRound,
+  finishFlappyRound,
+  startTimerRound,
+  finishTimerRound,
+  updateGamesAdminSettings,
+} from '../services/games.service';
+
+export const getGames = asyncHandler(async (req: Request, res: Response) => {
+  res.json({ ok: true, ...(await getGamesStatus(req.dbUser!, req.adminRole ?? null)) });
+});
+
+export const postAdTaskClaim = asyncHandler(async (req: Request, res: Response) => {
+  res.json({ ok: true, ...(await claimAdTask(req.dbUser!, req.adminRole ?? null)) });
+});
+
+export const postSnakeStart = asyncHandler(async (req: Request, res: Response) => {
+  const mode = (req.body as { mode?: string }).mode;
+  if (mode !== 'free' && mode !== 'ad') throw new AppError('mode must be free or ad', 422, 'VALIDATION_ERROR');
+  res.json({ ok: true, ...(await startSnakeRound(req.dbUser!, req.adminRole ?? null, mode)) });
+});
+
+export const postSnakeFinish = asyncHandler(async (req: Request, res: Response) => {
+  const { sessionId, food, died } = req.body as { sessionId?: string; food?: number; died?: boolean };
+  res.json({ ok: true, ...(await finishSnakeRound(req.dbUser!, { sessionId: String(sessionId ?? ''), food: Number(food), died: Boolean(died) })) });
+});
+
+export const postZigguratStart = asyncHandler(async (req: Request, res: Response) => {
+  const mode = (req.body as { mode?: string }).mode;
+  if (mode !== 'free' && mode !== 'ad') throw new AppError('mode must be free or ad', 422, 'VALIDATION_ERROR');
+  res.json({ ok: true, ...(await startZigguratRound(req.dbUser!, req.adminRole ?? null, mode)) });
+});
+
+export const postZigguratFinish = asyncHandler(async (req: Request, res: Response) => {
+  const { sessionId, floors } = req.body as { sessionId?: string; floors?: number };
+  res.json({ ok: true, ...(await finishZigguratRound(req.dbUser!, { sessionId: String(sessionId ?? ''), floors: Number(floors) })) });
+});
+
+export const postFlappyStart = asyncHandler(async (req: Request, res: Response) => {
+  const mode = (req.body as { mode?: string }).mode;
+  if (mode !== 'free' && mode !== 'ad') throw new AppError('mode must be free or ad', 422, 'VALIDATION_ERROR');
+  res.json({ ok: true, ...(await startFlappyRound(req.dbUser!, req.adminRole ?? null, mode)) });
+});
+
+export const postFlappyFinish = asyncHandler(async (req: Request, res: Response) => {
+  const { sessionId, pipes } = req.body as { sessionId?: string; pipes?: number };
+  res.json({ ok: true, ...(await finishFlappyRound(req.dbUser!, { sessionId: String(sessionId ?? ''), pipes: Number(pipes) })) });
+});
+
+export const postTimerStart = asyncHandler(async (req: Request, res: Response) => {
+  const mode = (req.body as { mode?: string }).mode;
+  if (mode !== 'free' && mode !== 'ad') throw new AppError('mode must be free or ad', 422, 'VALIDATION_ERROR');
+  res.json({ ok: true, ...(await startTimerRound(req.dbUser!, req.adminRole ?? null, mode)) });
+});
+
+export const postTimerFinish = asyncHandler(async (req: Request, res: Response) => {
+  const { sessionId, stops } = req.body as { sessionId?: string; stops?: unknown };
+  res.json({ ok: true, ...(await finishTimerRound(req.dbUser!, { sessionId: String(sessionId ?? ''), stops })) });
+});
+
+/** Adsgram Reward URL, e.g. https://<domain>/api/adsgram/reward?userid=[userId]&key=<ADSGRAM_REWARD_KEY> */
+export const getAdsgramReward = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as Record<string, string | undefined>;
+  await recordAdsgramReward(String(q.key ?? ''), String(q.userid ?? q.userId ?? q.user ?? ''));
+  res.json({ ok: true });
+});
+
+export const adminGetGames = asyncHandler(async (_req: Request, res: Response) => {
+  res.json({ ok: true, settings: await getGamesAdminSettings() });
+});
+
+/** The admin's ad check: did Adsgram report the admin's own view since `since`? */
+export const adminCheckAd = asyncHandler(async (req: Request, res: Response) => {
+  const since = new Date(String(req.query.since ?? ''));
+  if (Number.isNaN(since.getTime())) throw new AppError('since is required', 422, 'VALIDATION_ERROR');
+  res.json({ ok: true, ...(await adsgramConfirmedSince(req.telegramId!, since)) });
+});
+
+export const adminUpdateGames = asyncHandler(async (req: Request, res: Response) => {
+  res.json({ ok: true, settings: await updateGamesAdminSettings((req.body ?? {}) as Record<string, unknown>) });
+});

@@ -1,0 +1,256 @@
+import { nanoid } from 'nanoid';
+import { GiftLink, GiftLinkRewardType } from '../models/GiftLink';
+import { ClaimTask } from '../models/ClaimTask';
+import { Prize } from '../models/Prize';
+import { User } from '../models/User';
+import { UserPrize } from '../models/UserPrize';
+import { AppError } from '../utils/AppError';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
+import { t } from '../i18n';
+import { ensureClaimTask } from './claimTask.service';
+
+/** The longest message a developer can set on a gift link. */
+export const GIFT_MESSAGE_MAX = 2000;
+
+/** A prize from a gift link disappears if its claim steps aren't done within this time. */
+export const GIFT_PRIZE_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+export function parseGiftToken(value?: string | null): string | null {
+  if (!value) return null;
+  const match = value.trim().match(/^gift_([A-Za-z0-9_-]+)$/);
+  return match?.[1] ?? null;
+}
+
+export function buildGiftLink(token: string): string | null {
+  if (!env.BOT_USERNAME) return null;
+  return `https://t.me/${env.BOT_USERNAME}?start=gift_${token}`;
+}
+
+export async function createGiftLink(params: {
+  rewardType: GiftLinkRewardType;
+  pointsAmount?: number;
+  prizeKey?: string;
+  createdByTelegramId: number;
+  expiresInHours?: number | null;
+  maxRedemptions?: number;
+  message?: string | null;
+}) {
+  let prize: { _id: unknown; name: string } | null = null;
+  if (params.rewardType === 'points') {
+    if (!Number.isFinite(params.pointsAmount) || (params.pointsAmount ?? 0) <= 0) {
+      throw new AppError('pointsAmount must be positive', 422, 'VALIDATION_ERROR');
+    }
+  }
+  if (params.rewardType === 'prize' || params.rewardType === 'guaranteed_daily_prize') {
+    if (!params.prizeKey) throw new AppError('prizeKey is required', 422, 'VALIDATION_ERROR');
+    prize = await Prize.findOne({ key: params.prizeKey, isActive: true }).select('_id name');
+    if (!prize) throw new AppError('Prize not found or inactive', 404, 'PRIZE_NOT_FOUND');
+  }
+
+  const maxRedemptions = Number(params.maxRedemptions ?? 1);
+  if (!Number.isInteger(maxRedemptions) || maxRedemptions < 1) {
+    throw new AppError('maxRedemptions must be a positive integer', 422, 'VALIDATION_ERROR');
+  }
+
+  const hours = params.expiresInHours == null ? null : Number(params.expiresInHours);
+  if (hours !== null && (!Number.isFinite(hours) || hours <= 0)) {
+    throw new AppError('expiresInHours must be positive or null', 422, 'VALIDATION_ERROR');
+  }
+
+  // Blank = the usual message.
+  const message = typeof params.message === 'string' && params.message.trim() ? params.message.trim() : null;
+  if (message && message.length > GIFT_MESSAGE_MAX) {
+    throw new AppError(`الرسالة أطول من ${GIFT_MESSAGE_MAX} حرف`, 422, 'VALIDATION_ERROR');
+  }
+
+  const gift = await GiftLink.create({
+    token: nanoid(20),
+    rewardType: params.rewardType,
+    pointsAmount: params.rewardType === 'points' ? params.pointsAmount : null,
+    prize: prize?._id ?? null,
+    prizeNameSnapshot: prize?.name ?? null,
+    message,
+    maxRedemptions,
+    createdByTelegramId: params.createdByTelegramId,
+    expiresAt: hours === null ? null : new Date(Date.now() + hours * 60 * 60 * 1000),
+  });
+  return { gift, link: buildGiftLink(gift.token) };
+}
+
+export async function listGiftLinks(limit = 100) {
+  return GiftLink.find({}).sort({ createdAt: -1 }).limit(limit);
+}
+
+export async function revokeGiftLink(token: string) {
+  const updated = await GiftLink.findOneAndUpdate(
+    { token, status: 'unused' },
+    { $set: { status: 'revoked' } },
+    { new: true }
+  );
+  if (!updated) throw new AppError('Gift link is already used or unavailable', 409, 'GIFT_NOT_AVAILABLE');
+  return updated;
+}
+
+/**
+ * The "+" on a link: room for `amount` more people (50 + 100 → 150). A link that was full opens
+ * again; one whose time ran out opens again for `expiresInHours` more (null = no end).
+ * A cancelled link stays cancelled.
+ */
+export async function addGiftLinkUses(token: string, amount: number, expiresInHours?: number | null) {
+  if (!Number.isInteger(amount) || amount < 1 || amount > 1_000_000) {
+    throw new AppError('اكتب عدد أشخاص صحيح أكبر من صفر.', 422, 'VALIDATION_ERROR');
+  }
+  const gift = await GiftLink.findOne({ token });
+  if (!gift) throw new AppError('ما لكيت هذا الرابط.', 404, 'NOT_FOUND');
+  if (gift.status === 'revoked') throw new AppError('هذا الرابط ملغى.', 409, 'GIFT_REVOKED');
+
+  const now = new Date();
+  const set: { status: 'unused'; expiresAt?: Date | null } = { status: 'unused' };
+  const timeOver = gift.status === 'expired' || (gift.expiresAt != null && gift.expiresAt <= now);
+  if (timeOver) {
+    const hours = expiresInHours == null ? null : Number(expiresInHours);
+    if (hours !== null && (!Number.isFinite(hours) || hours <= 0)) {
+      throw new AppError('اكتب عدد ساعات صحيح، أو اتركه فارغ حتى يصير بدون انتهاء.', 422, 'VALIDATION_ERROR');
+    }
+    set.expiresAt = hours === null ? null : new Date(now.getTime() + hours * 60 * 60 * 1000);
+  }
+  const updated = await GiftLink.findOneAndUpdate(
+    { _id: gift._id, status: { $ne: 'revoked' } },
+    { $inc: { maxRedemptions: amount }, $set: set },
+    { new: true }
+  );
+  if (!updated) throw new AppError('هذا الرابط ملغى.', 409, 'GIFT_REVOKED');
+  return updated;
+}
+
+/**
+ * Gift prizes given before they had a deadline get the same 24 hours, counted from now (and
+ * their claim tasks with them). Safe to run on every start.
+ */
+export async function backfillGiftPrizeExpiry(now = new Date()) {
+  const ids = await UserPrize.find({ source: 'referral', status: 'active', expiresAt: null }).distinct('_id');
+  if (!ids.length) return 0;
+  const expiresAt = new Date(now.getTime() + GIFT_PRIZE_EXPIRY_MS);
+  const res = await UserPrize.updateMany({ _id: { $in: ids }, expiresAt: null }, { $set: { expiresAt } });
+  await ClaimTask.updateMany({ userPrize: { $in: ids } }, { $set: { expiresAt } });
+  return res.modifiedCount;
+}
+
+/**
+ * Gives the link's reward. `message` is the developer's own message when the link has one,
+ * otherwise the usual one (`custom` says which).
+ */
+export async function redeemGiftLink(token: string, telegramId: number): Promise<{ message: string; custom: boolean; isSpin?: boolean }> {
+  const now = new Date();
+  const claimed = await GiftLink.findOneAndUpdate(
+    {
+      token,
+      status: 'unused',
+      $expr: {
+        $lt: [
+          { $ifNull: ['$redemptionCount', 0] },
+          { $ifNull: ['$maxRedemptions', 1] },
+        ],
+      },
+      redeemedByTelegramIds: { $ne: telegramId },
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    },
+    {
+      $inc: { redemptionCount: 1 },
+      $addToSet: { redeemedByTelegramIds: telegramId },
+      $set: { redeemedByTelegramId: telegramId, redeemedAt: now },
+    },
+    { new: true }
+  );
+  if (!claimed) {
+    const expired = await GiftLink.findOne({ token, status: 'unused' });
+    if (expired?.expiresAt && expired.expiresAt <= now) {
+      await GiftLink.updateOne({ _id: expired._id, status: 'unused' }, { $set: { status: 'expired' } });
+      throw new AppError(t('انتهت صلاحية رابط الهدية أو تم استخدامه.', 'This gift link has expired or was already used.'), 409, 'GIFT_NOT_AVAILABLE');
+    }
+    if (expired && expired.redeemedByTelegramIds.includes(telegramId)) {
+      throw new AppError(t('استلمت هذه الهدية مسبقاً.', 'You already received this gift.'), 409, 'GIFT_ALREADY_REDEEMED');
+    }
+    if (expired && expired.redemptionCount >= expired.maxRedemptions) {
+      throw new AppError(t('اكتمل عدد مستخدمي رابط الهدية.', 'This gift link has reached its user limit.'), 409, 'GIFT_NOT_AVAILABLE');
+    }
+    throw new AppError(t('رابط الهدية غير صالح أو تم استخدامه مسبقاً.', 'This gift link is invalid or was already used.'), 409, 'GIFT_NOT_AVAILABLE');
+  }
+
+  if (claimed.redemptionCount >= claimed.maxRedemptions) {
+    // Checked again on the stored counts: a "+" at this moment keeps the link open.
+    await GiftLink.updateOne(
+      { _id: claimed._id, status: 'unused', $expr: { $gte: ['$redemptionCount', '$maxRedemptions'] } },
+      { $set: { status: 'redeemed' } }
+    );
+  }
+
+  const user = await User.findOne({ telegramId });
+  if (!user) throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+
+  // The developer's own message replaces the usual one (the reward is the same).
+  const custom = claimed.message?.trim() || null;
+  const reply = (usual: string, extra: { isSpin?: boolean } = {}) => ({ message: custom ?? usual, custom: Boolean(custom), ...extra });
+
+  try {
+    if (claimed.rewardType === 'points') {
+      await User.updateOne({ _id: user._id }, { $inc: { spinPoints: claimed.pointsAmount ?? 0 } });
+      return reply(t(`🎁 مبروك! استلمت هدية بقيمة ${claimed.pointsAmount} نقطة.\nتلقاها مضافة بحسابك، افتح البوت حتى تستخدمها.`, `🎁 Congrats! You received a gift of ${claimed.pointsAmount} points.\nIt’s in your account — open the bot to use it.`));
+    }
+    if (claimed.rewardType === 'daily_spin') {
+      await User.updateOne({ _id: user._id }, { $inc: { bonusDailySpins: 1 } });
+      return reply(t('🎡 تم إضافة عجلة يومية إلى حسابك!\nقم بإدارتها الآن 👇', '🎡 A daily spin was added to your account!\nSpin it now 👇'), { isSpin: true });
+    }
+
+    if (!claimed.prize) throw new AppError('Gift prize is missing', 500, 'GIFT_INVALID');
+    const prize = await Prize.findById(claimed.prize);
+    if (!prize) throw new AppError('Gift prize no longer exists', 409, 'GIFT_INVALID');
+    if (claimed.rewardType === 'guaranteed_daily_prize') {
+      await User.updateOne(
+        { _id: user._id },
+        { $inc: { bonusDailySpins: 1 }, $push: { guaranteedDailyPrizes: prize._id } },
+      );
+      // The prize stays a surprise: the message only announces the extra daily spin.
+      return reply(t('🎡 تم إضافة عجلة يومية إلى حسابك!\nقم بإدارتها الآن 👇', '🎡 A daily spin was added to your account!\nSpin it now 👇'), { isSpin: true });
+    }
+
+    if (!prize.isUnlimited) {
+      const reserved = await Prize.updateOne({ _id: prize._id, stock: { $gt: 0 } }, { $inc: { stock: -1, pendingCount: 1 } });
+      if (reserved.modifiedCount !== 1) throw new AppError(t('الجائزة نفدت حالياً.', 'This prize is out of stock.'), 409, 'GIFT_OUT_OF_STOCK');
+    } else {
+      await Prize.updateOne({ _id: prize._id }, { $inc: { pendingCount: 1 } });
+    }
+    // source 'referral' = a gift-link prize. Like a wheel prize, it's withdrawn only after every
+    // claim step (ad, share, invites), and it disappears (stock back to the bot) if they aren't
+    // done within 24 hours.
+    const userPrize = await UserPrize.create({
+      user: user._id,
+      telegramId,
+      prize: prize._id,
+      prizeNameSnapshot: prize.name,
+      source: 'referral',
+      wonAt: now,
+      expiresAt: new Date(now.getTime() + GIFT_PRIZE_EXPIRY_MS),
+      status: 'active',
+    });
+    // Should this fail, the inventory and the claim make the task anyway.
+    await ensureClaimTask(userPrize).catch((err) => logger.warn({ err, userPrize: userPrize._id }, 'gift prize task failed'));
+    return reply(
+      t(
+        `🎁 مبروك! استلمت الجائزة: ${prize.name}.\nتلقاها حالياً داخل المخزون/الحقيبة.\n\n📋 حتى تكدر تسحبها، كمّل مهام الاستلام كاملة (إعلان، مشاركة، دعوات) خلال 24 ساعة.\n⏳ إذا ما كمّلتها خلال 24 ساعة، الجائزة تختفي.`,
+        `🎁 Congrats! You received: ${prize.name}.\nYou’ll find it in your inventory.\n\n📋 Finish all its claim tasks (ad, share, invites) within 24 hours to withdraw it.\n⏳ If they aren’t done in 24 hours, the prize disappears.`
+      )
+    );
+  } catch (err) {
+    await GiftLink.updateOne(
+      { _id: claimed._id },
+      {
+        $set: { status: 'unused', redeemedByTelegramId: null, redeemedAt: null },
+        $inc: { redemptionCount: -1 },
+        $pull: { redeemedByTelegramIds: telegramId },
+      }
+    );
+    throw err;
+  }
+}
